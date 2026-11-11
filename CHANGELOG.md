@@ -4,11 +4,26 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循语义化版本。
 
+## [0.1.13] - 2026-11-11
+
+### 变更
+
+- **包名全小写化**：`@listardus/dsh-session-plugin`（npm 拒绝含大写字母的包名，影响商店/市场安装与 DSH CLI 解析）。
+- `/archive` 遗留别名加版本门：仅当请求头 `x-dsh-plugin-version >= 0.1.8` 放行；0.1.6/0.1.7 客户端（不发该头）被 426 拒绝，杜绝「以为归档、实为永久删除」。客户端所有请求现携带该头。
+- 删除**当前**会话后客户端自动切换到其他会话（依次尝试会话服务导航钩子 → 点「新会话」按钮 → 退回提醒文案）。
+
+### 修复 / 加固
+
+- `cleanupWorkspaceAfterDelete` 的静默 `catch {}` 全部改为 `ctx.logger.debug` 降级日志：保留 try/catch 不再 500，但宿主签名变化会留下线索。
+- 磁盘缓存新增 32MB 字节上限（原先只限 128 会话、不限字节，最坏可近 50MB 明文），超限按 ts 淘汰。
+- `/sessions` 标题读取改为 `size:mtime` 签名缓存：未变更文件不再重复读盘；无法定位时退化为 60s TTL。右键菜单打开不再 O(n) 读盘。
+- 删除路径安全校验抽为 `safety.js` 并新增单测 `test/delete-safety.test.js`（8 例：形状白名单、路径穿越、文件系统根、归属检查、home/config 根、符号链接目录/文件、合法路径放行），`npm test` 运行。
+
 ## [0.1.12] - 2026-11-11
 
 ### 变更
 
-- **项目更名为 `@LiStardus/dsh-session-plugin`**（本地分支，维护者 @LiStardus；基于 `@heeweelee/dsh-session-plugin` 0.1.11，MIT，保留原作者署名与 LICENSE）。安装/卸载命令、仓库链接更新为 [github.com/LiStardus/dsh-session-plugin](https://github.com/LiStardus/dsh-session-plugin)。
+- **项目更名为 `@listardus/dsh-session-plugin`**（本地分支，维护者 @LiStardus；基于 `@heeweelee/dsh-session-plugin` 0.1.11，MIT，保留原作者署名与 LICENSE）。安装/卸载命令、仓库链接更新为 [github.com/LiStardus/dsh-session-plugin](https://github.com/LiStardus/dsh-session-plugin)。
 
 ### 修复（适配 DSH 0.2.x）
 

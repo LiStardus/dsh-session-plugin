@@ -1,7 +1,8 @@
-# @LiStardus/dsh-session-plugin
+# @listardus/dsh-session-plugin
 
-> **本地分支 v0.1.12**（维护者：@LiStardus）：基于 `@heeweelee/dsh-session-plugin` 0.1.11（MIT）修改维护，保留原作者署名与 LICENSE。
-> 本地改动：① 删除白名单支持 DSH 0.2.x 的 `session.v4.jsonl[.zstd]`；② 删除后清理改为 `unarchiveSession`/`unpinSession` 清墓碑（修复新版 UI「未命名工作区」归档幽灵）；③ 删除时清理 `session_projcache` 投影缓存（修复「未分组」幽灵行）；④ 删除时从会话 store detach live 会话条目（修复幽灵行与投影缓存反复复活）。
+> **本地分支 v0.1.13**（维护者：@LiStardus）：基于 `@heeweelee/dsh-session-plugin` 0.1.11（MIT）修改维护，保留原作者署名与 LICENSE。安装：`dsh plugin add github:LiStardus/dsh-session-plugin`
+> 0.1.12 改动：① 删除白名单支持 DSH 0.2.x 的 `session.v4.jsonl[.zstd]`；② 删除后清理改为 `unarchiveSession`/`unpinSession` 清墓碑（修复「未命名工作区」归档幽灵）；③ 删除时清理 `session_projcache` 投影缓存（修复「未分组」幽灵行）；④ 删除时从会话 store detach live 会话条目（修复幽灵行反复复活）。
+> 0.1.13 改动：⑤ 清理失败输出降级日志（不再静默）；⑥ 删除当前会话后自动切换/新建会话；⑦ 磁盘缓存 32MB 字节上限；⑧ /sessions 标题签名缓存；⑨ /archive 别名版本门（>=0.1.8 才放行）；⑩ 包名全小写化 `@listardus/...`（npm 要求）；⑪ 删除安全校验抽为 safety.js 并配单测（`npm test`）。
 > 以下为原 README（保留原文以存档原作者说明）。
 
 一个可安装的 DeepSeek Harness（DSH）插件，把「输入框历史回填」和「会话右键彻底删除」作为发布包提供。
@@ -29,7 +30,7 @@ dsh plugin add github:LiStardus/dsh-session-plugin
 ## 卸载
 
 ```bash
-dsh plugin remove @LiStardus/dsh-session-plugin
+dsh plugin remove @listardus/dsh-session-plugin
 ```
 
 或从 **设置 > 插件** 里禁用/移除；随后重启 DSH。卸载只移除本插件，不会影响已删除（已消失）或已归档（隐藏）的会话数据。
@@ -109,11 +110,11 @@ package.json         声明 dsh.bundle.patch / dsh.client / exports
 
 `dist/client.js` 是手写的模块加载器 bundle（与内置插件 `lib/client.js` 相同的
 `window.__ModuleLoader__.load({ id, factory })` 线格式）。发布前建议用 DSH 插件
-构建链重新生成该文件，并核对 `id` 等于包名 `@LiStardus/dsh-session-plugin`。
+构建链重新生成该文件，并核对 `id` 等于包名 `@listardus/dsh-session-plugin`。
 
 ## 故障排查
 
-- **重启后按钮/回填不出现**：确认 `@LiStardus/dsh-session-plugin` 在 profile 的 `dsh.profile.bundles` 里，且已重启 DSH。
+- **重启后按钮/回填不出现**：确认 `@listardus/dsh-session-plugin` 在 profile 的 `dsh.profile.bundles` 里，且已重启 DSH。
 - **按 `↑`/`↓` 没反应**：先点一下输入框让光标聚焦；`↑` 会接管并暂存草稿，`↓` 仅在回填状态下导航（编辑器多行光标优先），输入法候选中的方向键一律放行。用 0.1.5 及更早版本 + DSH 2.0.4+ 时按键必然无响应（只认 `<textarea>`），请升级到 0.1.6+。
 - **区分「插件没挂载」和「按键守卫不匹配」**：点会话标题栏的「↑ 历史」按钮——它不走按键守卫。能回填或弹出提示说明插件已挂载、Host 路由正常，问题只在按键那侧；按钮本身不出现，则去 **设置 > 插件 > 插件清单** 看该条目的状态圆点是否处于已挂载 phase。
 - **回填的历史不完整**：历史来源是 `user/message` 事件文本；图片、引用等非文本内容不进入回填文本。含 `@文件` 的引用在发送时即拍平成 `@path` 字面文本，回填时会以 `@path` 文本形式还原。超长单条按 `maxCharsPerEntry` 截断。

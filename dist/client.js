@@ -17,7 +17,7 @@
 // `isComposerSurface` / `findComposerSurface`, which accept both shapes, so
 // ↑/↓ keeps working before and after that migration.
 window.__ModuleLoader__.load({
-  id: '@LiStardus/dsh-session-plugin',
+  id: '@listardus/dsh-session-plugin',
   factory: function (require) {
     var React = require('react')
 
@@ -34,7 +34,7 @@ window.__ModuleLoader__.load({
 
     function api(path, init) {
       if (!init) init = {}
-      init.headers = Object.assign({ 'x-dsh-csrf': '1' }, init.headers || {})
+      init.headers = Object.assign({ 'x-dsh-csrf': '1', 'x-dsh-plugin-version': '0.1.13' }, init.headers || {})
       var ctrl = null
       var timer = null
       try {
@@ -706,6 +706,53 @@ window.__ModuleLoader__.load({
             if (msg.indexOf('HTTP 501') !== -1) return '当前存储后端不支持删除（无法定位会话文件）。'
             return '删除失败：' + msg
           }
+          // [0.1.13] After deleting the CURRENT session, move the UI along
+          // instead of only reminding: try the session service's own
+          // navigation hooks, then the app's own "新会话" button, and only
+          // then fall back to the reminder toast. A message sent into the
+          // deleted session's view would recreate its record.
+          function switchAwayFromDeleted(deletedSid) {
+            try {
+              var svc = null
+              try { svc = (ctx && typeof ctx.get === 'function') ? ctx.get('sessions') : null } catch (e) { svc = null }
+              if (!svc) { try { svc = ctx.sessions } catch (e) {} }
+              var candidates = []
+              try {
+                var data = sessionsCache && sessionsCache.data && sessionsCache.data.sessions
+                if (Array.isArray(data)) for (var i = 0; i < data.length; i++) {
+                  if (data[i] && data[i].id && data[i].id !== deletedSid) candidates.push(data[i].id)
+                }
+              } catch (e) {}
+              for (var c = 0; c < candidates.length; c++) {
+                var id = candidates[c]
+                var hooks = ['openSession', 'selectSession', 'activateSession', 'open', 'select', 'activate']
+                for (var h = 0; h < hooks.length; h++) {
+                  try {
+                    if (svc && typeof svc[hooks[h]] === 'function') {
+                      var r = svc[hooks[h]](id)
+                      if (r && typeof r.catch === 'function') r.catch(function () {})
+                      toast('已彻底删除本地会话记录（已自动切换到其他会话）')
+                      return
+                    }
+                  } catch (e) {}
+                }
+              }
+            } catch (e) {}
+            try {
+              var btns = document.querySelectorAll('button, [role=button], a')
+              for (var b = 0; b < btns.length; b++) {
+                var el = btns[b]
+                if (!el) continue
+                var txt = (el.textContent || '').trim()
+                if (txt.indexOf('新会话') !== -1 && txt.length <= 8) {
+                  el.click()
+                  toast('已彻底删除本地会话记录（已自动新建会话）')
+                  return
+                }
+              }
+            } catch (e) {}
+            toast('已彻底删除本地会话记录（这是当前会话，请切换到其他会话）')
+          }
           var doArchive = function () {
             var sid = m.sid
             var rowEl = m.el
@@ -758,7 +805,7 @@ window.__ModuleLoader__.load({
                 window.dispatchEvent(new CustomEvent('dsh-session-plugin:deleted', { detail: { sessionId: sid } }))
                 window.dispatchEvent(new CustomEvent('dsh-session-plugin:archived', { detail: { sessionId: sid } }))
               } catch (e) {}
-              toast(isCurrent ? '已彻底删除本地会话记录（这是当前会话，请切换到其他会话）' : '已彻底删除本地会话记录')
+              if (isCurrent) { switchAwayFromDeleted(sid) } else { toast('已彻底删除本地会话记录') }
             }).catch(function (e) { toast(deleteErrorText(e)) })
           }
           children.push(React.createElement('div', {
@@ -794,7 +841,7 @@ window.__ModuleLoader__.load({
                 items.push(React.createElement('div', {
                   key: 'warn-current',
                   style: { padding: '0 16px 6px', fontSize: '11px', color: '#f5a97f', maxWidth: '260px', whiteSpace: 'normal' },
-                }, '这是当前正在查看的会话：删除后请切换到其他会话，否则在此继续发送会重建该会话的记录。'))
+                }, '这是当前正在查看的会话：删除后会自动切换到其他会话（失败则请手动切换）。'))
               }
             } catch (e) {}
             items.push(React.createElement('div', {

@@ -1,9 +1,10 @@
 {
-  "name": "@LiStardus/dsh-session-plugin",
-  "version": "0.1.12",
+  "name": "@listardus/dsh-session-plugin",
+  "version": "0.1.13",
   "description": "DeepSeek Harness plugin (local fork of @heeweelee/dsh-session-plugin 0.1.11, MIT): recall previously sent messages in the input box with ↑/↓, and permanently delete a workspace session's local records with a right-click.",
   "type": "module",
   "main": "index.js",
+  "scripts": { "test": "node --test test/" },
   "exports": {
     ".": "./index.js",
     "./client": "./dist/client.js",
@@ -11,6 +12,7 @@
   },
   "files": [
     "index.js",
+    "safety.js",
     "dist/client.js",
     "cordis.patch.yml",
     "README.md",

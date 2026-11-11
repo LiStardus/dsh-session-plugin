@@ -39,7 +39,8 @@
 import { readFileSync, writeFileSync, mkdirSync, renameSync, chmodSync, readdirSync, unlinkSync } from 'node:fs'
 import { rm, stat, readdir, rmdir, lstat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join, dirname, basename, isAbsolute, normalize, sep } from 'node:path'
+import { join, dirname, basename, isAbsolute, normalize, sep } from 'node:path';
+import { assertSafeArtifactShape } from './safety.js'
 
 export const name = 'dsh-session-plugin'
 export const inject = ['sessionQuery', 'workspaceRegistry', 'webServer']
@@ -177,13 +178,39 @@ function clearSaveTimer() {
   }
 }
 
-/** Keep at most 128 sessions in the disk cache (oldest evicted first). */
+/** Keep at most 128 sessions AND at most 32MB of plaintext in the disk cache
+ * (oldest ts evicted first). The cache holds raw user message text, so the
+ * unbounded byte budget was a real disk-fill risk: 128 sessions x 100
+ * entries x 4000 chars could approach 50MB of plaintext. [0.1.13] */
+const MAX_DISK_CACHE_BYTES = 32 * 1024 * 1024
 function trimDiskCache() {
   const keys = Object.keys(diskCache.sessions)
-  if (keys.length <= 128) return
-  keys.sort((a, b) => (diskCache.sessions[a].ts || 0) - (diskCache.sessions[b].ts || 0))
-  for (let i = 0; i < keys.length - 96; i++) delete diskCache.sessions[keys[i]]
+  if (keys.length > 128) {
+    keys.sort((a, b) => (diskCache.sessions[a].ts || 0) - (diskCache.sessions[b].ts || 0))
+    for (let i = 0; i < keys.length - 96; i++) delete diskCache.sessions[keys[i]]
+  }
+  // Byte budget: evict oldest-ts entries until the serialized cache fits.
+  const remaining = Object.keys(diskCache.sessions)
+  let total = 0
+  const sizes = new Map()
+  for (const k of remaining) {
+    const bytes = Buffer.byteLength(JSON.stringify(diskCache.sessions[k] || {}), 'utf8')
+    sizes.set(k, bytes)
+    total += bytes
+  }
+  if (total <= MAX_DISK_CACHE_BYTES) return
+  remaining.sort((a, b) => (diskCache.sessions[a].ts || 0) - (diskCache.sessions[b].ts || 0))
+  for (const k of remaining) {
+    if (total <= MAX_DISK_CACHE_BYTES) break
+    total -= sizes.get(k) || 0
+    delete diskCache.sessions[k]
+  }
 }
+
+// /sessions title cache (0.1.13): id -> { title, sig, at }; sig is the
+// artifact's `size:mtime` so unchanged files are served from memory instead
+// of re-read on every right-click menu open.
+const titleCache = new Map()
 
 loadConfig()
 loadDiskCache()
@@ -448,6 +475,18 @@ function evictPluginCaches(sessionId) {
  * archive failure is expected when the header cache already dropped the id;
  * the detached accounting + session-list refresh still hide the row.
  */
+/** Degraded-path logging (0.1.13): cleanup failures must never turn into a
+ * 500 after the file is gone, but they must not vanish silently either — a
+ * changed host signature (detachSession shape, registry availability) should
+ * leave a debug trail instead of surfacing as "the ghost row came back". */
+function cleanupWarn(ctx, what, e) {
+  try {
+    const log = ctx && ctx.logger
+    if (log && typeof log.debug === 'function') log.debug(`[dsh-session-plugin] ${what}`, e)
+    else if (typeof console !== 'undefined' && console && typeof console.debug === 'function') console.debug(`[dsh-session-plugin] ${what}`, e)
+  } catch {}
+}
+
 async function cleanupWorkspaceAfterDelete(ctx, sessionId) {
   // [local patch 2026-11-11] Detach the LIVE session entry from the session
   // store first: a deleted-but-mounted session keeps a live row in the
@@ -458,16 +497,23 @@ async function cleanupWorkspaceAfterDelete(ctx, sessionId) {
   try {
     const store = ctx.get('sessions')
     const live = store?.get?.(sessionId)
-    if (live != null && typeof store.liveEntryFor === 'function') {
-      const entry = store.liveEntryFor(live)
-      if (entry && typeof entry.detach === 'function') entry.detach()
+    if (live != null) {
+      // 0.1.13: best-effort explicit disposal first when the host exposes one;
+      // the store detach below is the reliable removal path and already emits
+      // `session/disposed` via detachEntered (verified in the dsh-session
+      // SessionStore source), so a missing dispose() is never a failure.
+      try { await live.dispose?.() } catch (e) { cleanupWarn(ctx, 'session dispose() unavailable/failed (store detach follows)', e) }
+      if (typeof store.liveEntryFor === 'function') {
+        const entry = store.liveEntryFor(live)
+        if (entry && typeof entry.detach === 'function') entry.detach()
+      }
     }
-  } catch {}
+  } catch (e) { cleanupWarn(ctx, 'live-session detach failed', e) }
   try {
     let registry = null
-    try { registry = ctx.workspaceRegistry ?? null } catch { registry = null }
+    try { registry = ctx.workspaceRegistry ?? null } catch (e) { registry = null; cleanupWarn(ctx, 'workspaceRegistry property probe failed (expected fallback)', e) }
     if (!registry) {
-      try { registry = ctx.get('workspaceRegistry') ?? null } catch { registry = null }
+      try { registry = ctx.get('workspaceRegistry') ?? null } catch (e) { registry = null; cleanupWarn(ctx, 'workspaceRegistry lookup failed', e) }
     }
     if (!registry) return
     try {
@@ -476,7 +522,7 @@ async function cleanupWorkspaceAfterDelete(ctx, sessionId) {
       // thenable so an async registry does not silently skip every detach
       // (a Promise is not iterable; without this the ghost row comes back).
       if (list && typeof list.then === 'function') {
-        try { list = await list } catch { list = [] }
+        try { list = await list } catch (e) { list = []; cleanupWarn(ctx, 'workspaceRegistry.list() rejected', e) }
       }
       for (const ws of list || []) {
         try {
@@ -484,9 +530,9 @@ async function cleanupWorkspaceAfterDelete(ctx, sessionId) {
           if (ws && typeof ws.detachSession === 'function') {
             await ws.detachSession(sessionId)
           }
-        } catch {}
+        } catch (e) { cleanupWarn(ctx, 'workspace detachSession failed', e) }
       }
-    } catch {}
+    } catch (e) { cleanupWarn(ctx, 'workspace detach sweep failed', e) }
     // [local patch 2026-11-11] New DSH clients RENDER archived ids (the old
     // client filtered them), so leaving an archive tombstone for the deleted id
     // makes it reappear as an archived row in the unassigned group — exactly the
@@ -498,13 +544,13 @@ async function cleanupWorkspaceAfterDelete(ctx, sessionId) {
       if (typeof registry.unarchiveSession === 'function') {
         await registry.unarchiveSession(sessionId)
       }
-    } catch {}
+    } catch (e) { cleanupWarn(ctx, 'unarchiveSession failed', e) }
     try {
       if (typeof registry.unpinSession === 'function') {
         await registry.unpinSession(sessionId)
       }
-    } catch {}
-  } catch {}
+    } catch (e) { cleanupWarn(ctx, 'unpinSession failed', e) }
+  } catch (e) { cleanupWarn(ctx, 'workspace cleanup failed', e) }
   // [local patch 2026-11-11] Remove the session projection cache entry too:
   // the UI session list can be served from
   // `<DSH_HOME>/storages/session_projcache/sessions/<id>.json`, and leaving it
@@ -520,7 +566,7 @@ async function cleanupWorkspaceAfterDelete(ctx, sessionId) {
         await rm(projPath, { force: true })
       }
     }
-  } catch {}
+  } catch (e) { cleanupWarn(ctx, 'projection-cache removal failed', e) }
 }
 
 /**
@@ -728,51 +774,12 @@ async function deleteSessionLocally(ctx, sessionId) {
   }
   if (!artifactPath) throw new Error(`cannot locate session file for '${sessionId}'`)
 
-  // 4. Strict shape validation BEFORE any rm: absolute path whose basename is
-  // exactly the backend's session artifact, nested one level under a directory
-  // named for this sessionId, and neither the artifact nor its dir a symlink.
-  // This is the last line of defense against a compromised/buggy locate()
-  // pointing at home, root, DSH_HOME, /tmp, or a planted symlink.
-  const normalizedArtifact = normalize(artifactPath)
-  const base = basename(normalizedArtifact)
-  // [local patch 2026-11-10] accept the v4 artifact names written by DSH 0.2.x
-  // (`session.v4.jsonl[.zstd]`) in addition to the legacy pair.
-  const KNOWN_ARTIFACTS = new Set([
-    'session.jsonl', 'session.jsonl.zstd',
-    'session.v4.jsonl', 'session.v4.jsonl.zstd',
-  ])
-  if (!isAbsolute(normalizedArtifact) || !KNOWN_ARTIFACTS.has(base)) {
-    throw new Error(`refusing to delete unexpected session artifact shape: '${base}'`)
-  }
+  // 4. Strict shape validation BEFORE any rm — extracted to safety.js so the
+  // rejection paths are unit-tested (test/delete-safety.test.js). This is the
+  // last line of defense against a compromised/buggy locate() pointing at
+  // home, root, DSH_HOME, /tmp, or a planted symlink.
+  const { artifactPath: normalizedArtifact, base } = await assertSafeArtifactShape(artifactPath, sessionId)
   const sessionDir = dirname(normalizedArtifact)
-  if (!sessionDir || sessionDir === dirname(sessionDir)) {
-    throw new Error('refusing to delete session directory at filesystem root')
-  }
-  if (basename(sessionDir) !== sessionId) {
-    throw new Error(`refusing to delete session directory not owned by '${sessionId}'`)
-  }
-  // Never delete from inside the plugin's own config/cache home or the user's
-  // home root directly: session logs live under the persistence root, one
-  // directory per session. A locate() pointing here means a backend bug.
-  const homeNorm = normalize(homedir())
-  const dshHomeNorm = normalize(DSH_HOME)
-  if (sessionDir === homeNorm || sessionDir === dshHomeNorm ||
-    sessionDir === join(dshHomeNorm, sep)) {
-    throw new Error('refusing to delete session directory at home/config root')
-  }
-  try {
-    const artStat = await lstat(normalizedArtifact).catch(() => null)
-    if (artStat && typeof artStat.isSymbolicLink === 'function' && artStat.isSymbolicLink()) {
-      throw new Error('refusing to delete symlinked session artifact')
-    }
-    const dirStat = await lstat(sessionDir).catch(() => null)
-    if (dirStat && typeof dirStat.isSymbolicLink === 'function' && dirStat.isSymbolicLink()) {
-      throw new Error('refusing to delete symlinked session directory')
-    }
-  } catch (e) {
-    if (e && /refusing to delete symlinked/.test(e.message || '')) throw e
-    // lstat failing (file already gone) is fine — rm handles absence below.
-  }
   artifactPath = normalizedArtifact
 
   // 5. Remove. The session dir owns only this session's artifacts
@@ -874,28 +881,55 @@ export function apply(ctx) {
               if (Array.isArray(arr)) archivedSet = new Set(arr.map(String))
             } catch {}
             const ids = []
+            const recs = []
             for (const rec of sessions) {
               const id = rec && rec.header ? rec.header.id : undefined
               if (typeof id !== 'string' || !id) continue
               if (archivedSet && archivedSet.has(id)) continue
               ids.push(id)
+              recs.push(rec)
             }
-            // Bounded concurrency: avoid N sequential disk reads (titles) while
-            // not stampeding the session store with unbounded parallelism.
+            // Bounded concurrency + [0.1.13] signature-keyed title cache:
+            // unchanged session files serve their title from memory (size:mtime
+            // match) so a right-click open no longer re-reads every log — O(n)
+            // reads per open dragged the menu with hundreds of sessions.
+            // Unlocatable files fall back to a 60s TTL entry.
             const CONCURRENCY = 8
             const result = new Array(ids.length)
             let cursor = 0
+            let persistenceSvc = null
+            try { persistenceSvc = ctx.get('sessionPersistence') } catch { persistenceSvc = null }
+            async function titleFor(rec, id) {
+              let sig = null
+              try {
+                const loc = persistenceSvc && typeof persistenceSvc.locate === 'function' ? persistenceSvc.locate(rec.header) : null
+                if (loc && typeof loc.path === 'string') {
+                  const st = await lstat(loc.path).catch(() => null)
+                  if (st) sig = `${st.size}:${st.mtimeMs}`
+                }
+              } catch {}
+              const hit = titleCache.get(id)
+              if (hit && ((sig !== null && hit.sig === sig) || (sig === null && hit.at > Date.now() - 60000))) {
+                return hit.title
+              }
+              let title
+              try {
+                const t = await ctx.sessionQuery.readTitle(id)
+                title = t && t.title ? t.title : undefined
+              } catch (e) { cleanupWarn(ctx, `readTitle failed for ${id}`, e) }
+              titleCache.set(id, { title, sig, at: Date.now() })
+              if (titleCache.size > 4096) {
+                const now = Date.now()
+                for (const [k, v] of titleCache) { if (v.at + 300000 < now) titleCache.delete(k) }
+              }
+              return title
+            }
             async function worker() {
               while (true) {
                 const i = cursor++
                 if (i >= ids.length) return
-                const id = ids[i]
-                let title
-                try {
-                  const t = await ctx.sessionQuery.readTitle(id)
-                  title = t && t.title ? t.title : undefined
-                } catch {}
-                result[i] = { id, title: title || String(id) }
+                const title = await titleFor(recs[i], ids[i])
+                result[i] = { id: ids[i], title: title || String(ids[i]) }
               }
             }
             const workers = []
@@ -950,10 +984,31 @@ export function apply(ctx) {
         }
       }
 
-      // Canonical route + legacy alias. Both are PERMANENT local deletion
-      // since 0.1.8 (see deleteSessionLocally); the old /archive path is kept
-      // only so already-installed 0.1.6/0.1.7 clients keep working — and they
-      // now delete too, which README/CHANGELOG call out explicitly.
+      // [0.1.13] Parse x-dsh-plugin-version (semver-ish) and compare against a
+      // floor. The legacy /archive alias PERMANENTLY DELETES (since 0.1.8),
+      // which is not what a 0.1.6/0.1.7 client means by "archive" — gate the
+      // alias on an explicit version header so pre-0.1.8 clients (which never
+      // send one) are refused instead of silently destroying data they meant
+      // to hide. The canonical /delete route is unchanged.
+      function pluginVersionAtLeast(req, maj, min, pat) {
+        const raw = String((req && req.headers && req.headers['x-dsh-plugin-version']) || '')
+        const m = /^(\d+)\.(\d+)\.(\d+)/.exec(raw.trim())
+        if (!m) return false
+        const a = Number(m[1]); const b = Number(m[2]); const c = Number(m[3])
+        if (a !== maj) return a > maj
+        if (b !== min) return b > min
+        return c >= pat
+      }
+      const handleArchiveAlias = (req, res) => {
+        if (!pluginVersionAtLeast(req, 0, 1, 8)) {
+          return sendJson(res, 426, {
+            error: 'the /archive alias permanently deletes since 0.1.8; upgrade the client to >= 0.1.8 (sends x-dsh-plugin-version) or call /delete explicitly',
+          })
+        }
+        return handleDelete(req, res)
+      }
+      // Canonical route (permanent local deletion) + legacy alias behind the
+      // version gate above.
       const offDelete = ctx.webServer.register({
         kind: 'exact',
         path: ROUTE_DELETE,
@@ -963,7 +1018,7 @@ export function apply(ctx) {
       const offArchive = ctx.webServer.register({
         kind: 'exact',
         path: ROUTE_ARCHIVE,
-        handler: handleDelete,
+        handler: handleArchiveAlias,
       })
 
       return () => {

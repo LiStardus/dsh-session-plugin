@@ -1,4 +1,4 @@
-# Bundle patch for @LiStardus/dsh-session-plugin.
+# Bundle patch for @listardus/dsh-session-plugin.
 # DSH composes a profile by applying every bundle's patch (declared in this
 # package's `dsh.bundle.patch`) over an empty entry list. This patch inserts the
 # package as one plugin row. Its Host half resolves from `main`/`exports["."]`;
@@ -6,4 +6,4 @@
 # `exports["./client"]` (`./dist/client.js`).
 - insert:
     - id: dsh-session-plugin
-      name: '@LiStardus/dsh-session-plugin'
+      name: '@listardus/dsh-session-plugin'
