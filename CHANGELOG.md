@@ -4,6 +4,19 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循语义化版本。
 
+## [0.1.12] - 2026-11-11
+
+### 变更
+
+- **项目更名为 `@LiStardus/dsh-session-delete`**（本地分支，维护者 @LiStardus；基于 `@heeweelee/dsh-session-plugin` 0.1.11，MIT，保留原作者署名与 LICENSE）。安装/卸载命令、仓库链接更新为 [github.com/LiStardus/dsh-session-delete](https://github.com/LiStardus/dsh-session-delete)。
+
+### 修复（适配 DSH 0.2.x）
+
+- **删除报 500**：删除白名单支持 DSH 0.2.x 的 `session.v4.jsonl[.zstd]` 会话产物命名。
+- **「未命名工作区」归档幽灵**：删除后改用 `unarchiveSession`/`unpinSession` 清墓碑，不再留归档标记（新版 UI 会渲染归档 id，旧版是过滤）。
+- **「未分组」幽灵行**：删除时清理 `session_projcache` 投影缓存条目。
+- **幽灵行反复复活**：删除时从会话 store detach live 条目（`liveEntryFor().detach()`，官方移除路径），已删但仍挂载的会话不再进列表索引、不再重写投影缓存。
+
 ## [0.1.11] - 2026-09-05
 
 ### 变更

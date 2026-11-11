@@ -43,7 +43,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Heeweelee/dsh-session-plugin.git"
+    "url": "git+https://github.com/LiStardus/dsh-session-delete.git"
   },
   "keywords": [
     "deepseek-harness",
