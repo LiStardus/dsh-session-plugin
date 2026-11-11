@@ -17,7 +17,7 @@
 // `isComposerSurface` / `findComposerSurface`, which accept both shapes, so
 // ↑/↓ keeps working before and after that migration.
 window.__ModuleLoader__.load({
-  id: '@LiStardus/dsh-session-delete',
+  id: '@LiStardus/dsh-session-plugin',
   factory: function (require) {
     var React = require('react')
 

@@ -1,5 +1,5 @@
 {
-  "name": "@LiStardus/dsh-session-delete",
+  "name": "@LiStardus/dsh-session-plugin",
   "version": "0.1.12",
   "description": "DeepSeek Harness plugin (local fork of @heeweelee/dsh-session-plugin 0.1.11, MIT): recall previously sent messages in the input box with ↑/↓, and permanently delete a workspace session's local records with a right-click.",
   "type": "module",
@@ -43,7 +43,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LiStardus/dsh-session-delete.git"
+    "url": "git+https://github.com/LiStardus/dsh-session-plugin.git"
   },
   "keywords": [
     "deepseek-harness",

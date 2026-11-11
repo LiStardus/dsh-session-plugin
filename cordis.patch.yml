@@ -1,9 +1,9 @@
-# Bundle patch for @LiStardus/dsh-session-delete.
+# Bundle patch for @LiStardus/dsh-session-plugin.
 # DSH composes a profile by applying every bundle's patch (declared in this
 # package's `dsh.bundle.patch`) over an empty entry list. This patch inserts the
 # package as one plugin row. Its Host half resolves from `main`/`exports["."]`;
 # its Client half is declared by `dsh.client` and resolves from
 # `exports["./client"]` (`./dist/client.js`).
 - insert:
-    - id: dsh-session-delete
-      name: '@LiStardus/dsh-session-delete'
+    - id: dsh-session-plugin
+      name: '@LiStardus/dsh-session-plugin'
