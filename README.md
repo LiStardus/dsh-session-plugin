@@ -1,8 +1,25 @@
 # @listardus/dsh-session-plugin
 
-> **本地分支 v0.1.13**（维护者：@LiStardus）：基于 `@heeweelee/dsh-session-plugin` 0.1.11（MIT）修改维护，保留原作者署名与 LICENSE。安装：`dsh plugin add github:LiStardus/dsh-session-plugin`
+> **本地分支 v0.1.13**（维护者：@LiStardus）：基于 `@heeweelee/dsh-session-plugin` 0.1.11（MIT）修改维护，保留原作者署名与 LICENSE。安装：`dsh plugin add github:listardus/dsh-session-plugin`
 > 0.1.12 改动：① 删除白名单支持 DSH 0.2.x 的 `session.v4.jsonl[.zstd]`；② 删除后清理改为 `unarchiveSession`/`unpinSession` 清墓碑（修复「未命名工作区」归档幽灵）；③ 删除时清理 `session_projcache` 投影缓存（修复「未分组」幽灵行）；④ 删除时从会话 store detach live 会话条目（修复幽灵行反复复活）。
 > 0.1.13 改动：⑤ 清理失败输出降级日志（不再静默）；⑥ 删除当前会话后自动切换/新建会话；⑦ 磁盘缓存 32MB 字节上限；⑧ /sessions 标题签名缓存；⑨ /archive 别名版本门（>=0.1.8 才放行）；⑩ 包名全小写化 `@listardus/...`（npm 要求）；⑪ 删除安全校验抽为 safety.js 并配单测（`npm test`）。
+
+## 安全与测试
+
+删除是不可恢复的破坏性操作，本仓库对删除路径（`safety.js`）配有单元测试（`npm test`，node --test）：**8/8 通过**（2026-11-11，Windows / Node 22）。
+
+| # | 用例（构造恶意/异常 locate() 返回值） | 防线 | 断言结果 |
+|---|---|---|---|
+| 1 | 未知产物名（`evil.exe`、`session.v3.jsonl` 等 4 种） | 产物白名单 | ✅ 全部拒绝 |
+| 2 | 相对路径与 `../../../etc` 穿越 | 绝对路径 + 白名单 | ✅ 拒绝 |
+| 3 | 产物直接位于文件系统根 | 根目录防线 | ✅ 拒绝 |
+| 4 | 目录不归属该会话 id | 归属检查 | ✅ 拒绝 |
+| 5 | home 根 / DSH 配置根 | home/config 防线 | ✅ 拒绝 |
+| 6 | 符号链接会话目录（junction 指向真实目录） | 符号链接防线 | ✅ 拒绝 |
+| 7 | 符号链接产物文件 | 符号链接防线 | ✅ 拒绝* |
+| 8 | 合法 v4 / 旧版产物（正向对照） | — | ✅ 正常放行 |
+
+所有拒绝消息均以 `refusing to delete` 开头。* 用例 7 在无开发者模式/管理员权限的机器上自动跳过（Windows 文件符号链接需特权；目录 junction 用例 6 无特权即可覆盖符号链接防线）。
 > 以下为原 README（保留原文以存档原作者说明）。
 
 一个可安装的 DeepSeek Harness（DSH）插件，把「输入框历史回填」和「会话右键彻底删除」作为发布包提供。
@@ -22,7 +39,7 @@
 ## 安装
 
 ```bash
-dsh plugin add github:LiStardus/dsh-session-plugin
+dsh plugin add github:listardus/dsh-session-plugin
 ```
 
 或在 DSH Desktop 的 **设置 > 插件** 市场中安装。安装后重启 DSH 使新包生效。

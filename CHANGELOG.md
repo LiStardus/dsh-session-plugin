@@ -23,7 +23,7 @@
 
 ### 变更
 
-- **项目更名为 `@listardus/dsh-session-plugin`**（本地分支，维护者 @LiStardus；基于 `@heeweelee/dsh-session-plugin` 0.1.11，MIT，保留原作者署名与 LICENSE）。安装/卸载命令、仓库链接更新为 [github.com/LiStardus/dsh-session-plugin](https://github.com/LiStardus/dsh-session-plugin)。
+- **项目更名为 `@listardus/dsh-session-plugin`**（本地分支，维护者 @LiStardus；基于 `@heeweelee/dsh-session-plugin` 0.1.11，MIT，保留原作者署名与 LICENSE）。安装/卸载命令、仓库链接更新为 [github.com/listardus/dsh-session-plugin](https://github.com/listardus/dsh-session-plugin)。
 
 ### 修复（适配 DSH 0.2.x）
 

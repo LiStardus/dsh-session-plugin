@@ -45,7 +45,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LiStardus/dsh-session-plugin.git"
+    "url": "git+https://github.com/listardus/dsh-session-plugin.git"
   },
   "keywords": [
     "deepseek-harness",
