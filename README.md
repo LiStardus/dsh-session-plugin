@@ -38,8 +38,16 @@
 
 ## 安装
 
+从 npm 安装（推荐）：
+
 ```bash
 dsh plugin add @listardus/dsh-session-plugin
+```
+
+或从 GitHub 安装：
+
+```bash
+dsh plugin add github:listardus/dsh-session-plugin
 ```
 
 或在 DSH Desktop 的 **设置 > 插件** 市场中安装。安装后重启 DSH 使新包生效。
