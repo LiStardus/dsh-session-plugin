@@ -1,6 +1,6 @@
 {
   "name": "@listardus/dsh-session-plugin",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "DeepSeek Harness plugin (local fork of @heeweelee/dsh-session-plugin 0.1.11, MIT): recall previously sent messages in the input box with ↑/↓, and permanently delete a workspace session's local records with a right-click.",
   "type": "module",
   "main": "index.js",

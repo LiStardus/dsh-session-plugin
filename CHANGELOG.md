@@ -4,7 +4,7 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循语义化版本。
 
-## [0.1.14] - 2026-11-12
+## [0.1.15] - 2026-11-12`n`n### 变更`n`n- 版本号统一：README 横幅、客户端 `x-dsh-plugin-version` 请求头、package.json 三处对齐到 0.1.15（此前横幅停在 v0.1.13、请求头停在 0.1.13）。请求头旁新增「与 package.json 同步」维护注释。`n`n## [0.1.14] - 2026-11-12
 
 ### 变更
 

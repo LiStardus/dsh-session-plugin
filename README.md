@@ -1,8 +1,8 @@
 # @listardus/dsh-session-plugin
 
-> **本地分支 v0.1.13**（维护者：@LiStardus）：基于 `@heeweelee/dsh-session-plugin` 0.1.11（MIT）修改维护，保留原作者署名与 LICENSE。安装：`dsh plugin add @listardus/dsh-session-plugin`（npm，亦可 `github:listardus/dsh-session-plugin`）
+> **本地分支 v0.1.15**（维护者：@LiStardus）：基于 `@heeweelee/dsh-session-plugin` 0.1.11（MIT）修改维护，保留原作者署名与 LICENSE。安装：`dsh plugin add @listardus/dsh-session-plugin`（npm，亦可 `github:listardus/dsh-session-plugin`）
 > 0.1.12 改动：① 删除白名单支持 DSH 0.2.x 的 `session.v4.jsonl[.zstd]`；② 删除后清理改为 `unarchiveSession`/`unpinSession` 清墓碑（修复「未命名工作区」归档幽灵）；③ 删除时清理 `session_projcache` 投影缓存（修复「未分组」幽灵行）；④ 删除时从会话 store detach live 会话条目（修复幽灵行反复复活）。
-> 0.1.13 改动：⑤ 清理失败输出降级日志（不再静默）；⑥ 删除当前会话后自动切换/新建会话；⑦ 磁盘缓存 32MB 字节上限；⑧ /sessions 标题签名缓存；⑨ /archive 别名版本门（>=0.1.8 才放行）；⑩ 包名全小写化 `@listardus/...`（npm 要求）；⑪ 删除安全校验抽为 safety.js 并配单测（`npm test`）。
+> 0.1.13 改动：⑤ 清理失败输出降级日志（不再静默）；⑥ 删除当前会话后自动切换/新建会话；⑦ 磁盘缓存 32MB 字节上限；⑧ /sessions 标题签名缓存；⑨ /archive 别名版本门（>=0.1.8 才放行）；⑩ 包名全小写化 `@listardus/...`（npm 要求）；⑪ 删除安全校验抽为 safety.js 并配单测（`npm test`）。`n> 0.1.14/0.1.15：文档完善（双安装命令、安全测试矩阵）与版本号统一。
 
 ## 安全与测试
 

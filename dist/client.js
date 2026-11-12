@@ -34,7 +34,9 @@ window.__ModuleLoader__.load({
 
     function api(path, init) {
       if (!init) init = {}
-      init.headers = Object.assign({ 'x-dsh-csrf': '1', 'x-dsh-plugin-version': '0.1.13' }, init.headers || {})
+      // Keep this version in sync with package.json (it feeds the server-side
+      // x-dsh-plugin-version gates, e.g. the legacy /archive alias check).
+      init.headers = Object.assign({ 'x-dsh-csrf': '1', 'x-dsh-plugin-version': '0.1.15' }, init.headers || {})
       var ctrl = null
       var timer = null
       try {
